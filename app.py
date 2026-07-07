@@ -281,10 +281,15 @@ HTML_CONTENT = r"""
     border:none;
     background:var(--primary);
     color:#fff;
-    font-size:16px;
     cursor:pointer;
     display:flex;align-items:center;justify-content:center;
+    padding:0;
     transition:background .2s;
+  }
+  .send-btn svg{
+    width:16px;height:16px;
+    display:block;
+    margin-left:1px;
   }
   .send-btn:hover{background:var(--primary-dark);}
   .send-btn:disabled{background:var(--border);cursor:not-allowed;}
@@ -351,7 +356,11 @@ HTML_CONTENT = r"""
       <button class="next-btn" id="nextBtn" disabled>제품 추천 받으러 가기 →</button>
       <div class="input-row">
         <input type="text" class="chat-text-input" id="chatInput" placeholder="편하게 이야기해주세요..." autocomplete="off">
-        <button class="send-btn" id="sendBtn" aria-label="전송">➤</button>
+        <button class="send-btn" id="sendBtn" aria-label="전송">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4 12L20 12M20 12L13 5M20 12L13 19" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
       </div>
     </div>
   </div>
@@ -378,7 +387,11 @@ HTML_CONTENT = r"""
     <div class="input-bar">
       <div class="input-row">
         <input type="text" class="chat-text-input" id="chatInput2" placeholder="편하게 이야기해주세요..." autocomplete="off">
-        <button class="send-btn" id="sendBtn2" aria-label="전송">➤</button>
+        <button class="send-btn" id="sendBtn2" aria-label="전송">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4 12L20 12M20 12L13 5M20 12L13 19" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
       </div>
     </div>
   </div>
