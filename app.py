@@ -419,7 +419,7 @@ HTML_CONTENT = r"""
   let turnCount = 0;
 
   const followUps = [
-    "오, 그러시군요! 세안하고 나면 얼굴이 땡기는 편이세요, 아니면 좀 번들거리는 편이세요?",
+    "오오, 그러쉬구놔~ 세안하고 나면 얼굴이 땡기는 편이세요, 아니면 좀 번들거리는 편이세요?",
     "혹시 새 제품 쓰셨다가 트러블이 확 올라온 적 있으세요? 그때 어떤 제품 쓰셨는지 기억나세요?",
     "여드름 나면 좁쌀처럼 오돌토돌한 편이세요, 아니면 빨갛게 염증성으로 올라오는 편이세요?",
     "각질은 어떠세요? 손으로 만졌을 때 까슬까슬한 부위 있으세요?",
@@ -557,10 +557,10 @@ HTML_CONTENT = r"""
     renderDots();
 
     if(turnCount >= TOTAL_TURNS){
-      typeAndSend(chatScroll, "네, 이 정도면 피부 상태가 딱 파악됐어요! 아래 '제품 추천 받으러 가기' 눌러서 결과 보러 가실까요? 👇\n(더 이야기하고 싶으시면 계속 말씀해주셔도 돼요, 더 정확해져요!)", 500);
+      typeAndSend(chatScroll, "네에, 이 정도면 피부 상태가 딱 파악됐어용! 아래 '제품 추천 받으러 가기' 눌러서 결과 보러 가실까요? 👇\n(더 이야기하고 싶으시면 계속 말씀해주셔도 돼요, 더 정확해져요!)", 500);
       unlockNextButton();
     } else {
-      const next = followUps[turnCount - 1] || "조금 더 자세히 말씀해주시겠어요? 어떤 느낌인지 궁금해요!";
+      const next = followUps[turnCount - 1] || "조으음 더 자세히 말씀해주시겠어용? 어떤 느낌인지 궁금하네용!";
       typeAndSend(chatScroll, next, 500 + Math.random()*300);
     }
   }
@@ -576,7 +576,7 @@ HTML_CONTENT = r"""
   });
 
   const DIAGNOSIS_MESSAGE =
-    "자, 말씀 다 들어봤어요! 종합해보니 고객님은 수분 부족형 민감성 피부에 가까운 것 같아요 😊\n" +
+    "자아, 말씀 다 들어봤어용! 종합해보니 고객님은 수분 부족형 민감성 피부에 가까운 것 같아요 😊\n" +
     "세안 후에 땡기는 느낌 있으시고, 새 제품 쓰면 트러블이 잘 올라오는 편이라 피부 장벽이 살짝 약해진 상태일 가능성이 높아요.\n\n" +
     "그래서 제품은 이런 방향으로 고르시는 게 좋아요:\n" +
     "🔹 저자극 순한 제품 (향료·알코올 최소화)\n" +
@@ -638,8 +638,8 @@ HTML_CONTENT = r"""
 
   function nextProductQuestion(){
     if(!productSlots.category) return "어떤 제품 종류가 필요하세요? 로션, 세럼, 크림, 클렌저 중에 골라주시겠어요?";
-    if(!productSlots.texture) return `오, ${productSlots.category} 찾고 계시는군요! 사용감은 어떤 스타일이 좋으세요? 가볍고 산뜻한 타입 vs 촉촉하게 밀착되는 타입, 어느 쪽이세요?`;
-    if(!productSlots.effect) return "좋아요! 제일 원하시는 효과가 뭐예요? 예를 들면 진정, 보습, 장벽강화, 미백, 탄력 이런 것 중에서요!";
+    if(!productSlots.texture) return `오오, ${productSlots.category} 찾고 계시는구나~! 사용감은 어떤 스타일이 좋으세요? 가볍고 산뜻한 타입 vs 촉촉하게 밀착되는 타입, 어느 쪽이세요?`;
+    if(!productSlots.effect) return "조아용~ 제일 원하시는 효과가 뭐예요? 예를 들면 진정, 보습, 장벽강화, 미백, 탄력 이런 것 중에서요!";
     return null;
   }
 
@@ -655,8 +655,8 @@ HTML_CONTENT = r"""
       typeAndSend(chatScroll2, question, 500 + Math.random()*300);
     } else {
       const closing = effectFromDelegation
-        ? "네, 아까 진단해드린 대로 보습 + 장벽강화 중심으로 딱 골라드릴게요! 👇"
-        : "네, 딱 맞는 제품 골라드렸어요! 👇";
+        ? "네에, 아까 진단해드린 대로 보습 + 장벽강화 중심으로 딱 골라드릴게용! 👇"
+        : "네에, 딱 맞는 제품 골라드렸어용! 👇";
       typeAndSend(chatScroll2, closing, 500).then(renderProductCards);
     }
   }
