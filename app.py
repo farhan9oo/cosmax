@@ -442,6 +442,7 @@ HTML_CONTENT = r"""
     '<circle cx="76" cy="44" r="5" fill="#F5A9A0" opacity="0.6"/>' +
     '<circle cx="33" cy="34" r="4" fill="#2B2B2B"/>' +
     '<circle cx="67" cy="34" r="4" fill="#2B2B2B"/>' +
+    '<ellipse cx="50" cy="42" rx="3" ry="2.2" fill="#EFC49E"/>' +
     '<path d="M32 48 Q50 60 68 48" fill="none" stroke="#2B2B2B" stroke-width="3" stroke-linecap="round"/>' +
     '</svg>';
 
