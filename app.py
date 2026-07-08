@@ -426,6 +426,34 @@ HTML_CONTENT = r"""
 
   const TOTAL_TURNS = 10;
   let turnCount = 0;
+  const diagnosisAnswers = [];
+
+  const SKIN_TYPE_KEYWORDS = {
+    "건성": ["건조","당기","땡기","당김","푸석","메마","각질"],
+    "지성": ["번들","기름","유분","블랙헤드","모공","미끌"],
+    "복합성": ["티존","T존","t존","부분적","혼합"],
+    "민감성": ["예민","민감","트러블","자극","붉어지","화끈","따갑","가렵"]
+  };
+
+  const SKIN_TYPE_PROFILE = {
+    "건성": { effect: "보습, 장벽강화", texture: "촉촉한 밀착 타입" },
+    "지성": { effect: "피지조절, 트러블 개선", texture: "가볍고 산뜻한 타입" },
+    "복합성": { effect: "보습, 피지조절", texture: "가볍고 산뜻한 타입" },
+    "민감성": { effect: "진정, 장벽강화", texture: "촉촉한 밀착 타입" }
+  };
+
+  function detectSkinType(answers){
+    const text = answers.join(' ');
+    let best = "민감성";
+    let bestScore = 0;
+    for(const type in SKIN_TYPE_KEYWORDS){
+      const score = SKIN_TYPE_KEYWORDS[type].filter((k) => text.includes(k)).length;
+      if(score > bestScore){ bestScore = score; best = type; }
+    }
+    return best;
+  }
+
+  let diagnosisSkinType = "민감성";
 
   const followUps = [
     "오오, 그러쉬구놔~ 세안하고 나면 얼굴이 땡기는 편이세요, 아니면 좀 번들거리는 편이세요?",
@@ -562,6 +590,7 @@ HTML_CONTENT = r"""
     if(!text) return;
     addMessage(chatScroll, text, 'user');
     chatInput.value = '';
+    diagnosisAnswers.push(text);
     turnCount++;
     renderDots();
 
@@ -584,24 +613,65 @@ HTML_CONTENT = r"""
     if(e.key === 'Enter') handleSend();
   });
 
-  const DIAGNOSIS_MESSAGE =
-    "자아, 말씀 다 들어봤어용! 종합해보니 고객님은 수분 부족형 민감성 피부에 가까운 것 같아요 😊\n" +
-    "세안 후에 땡기는 느낌 있으시고, 새 제품 쓰면 트러블이 잘 올라오는 편이라 피부 장벽이 살짝 약해진 상태일 가능성이 높아요.\n\n" +
-    "그래서 제품은 이런 방향으로 고르시는 게 좋아요:\n" +
-    "🔹 저자극 순한 제품 (향료·알코올 최소화)\n" +
-    "🔹 세라마이드처럼 장벽 강화해주는 기능성 제품\n" +
-    "🔹 고농도 산(AHA/BHA)이 들어간 자극적인 제품은 당분간 피하시는 게 좋아요\n\n" +
-    "피부과 시술은 수분을 채워주는 스킨부스터/필링 계열을 추천드릴게요! 각질 제거 위주의 강한 박피나 압출은 지금 피부엔 좀 자극적일 수 있어요.\n\n" +
-    "이제 이 방향에 맞는 코스맥스 제품, 구체적으로 골라드릴까요?";
+  const DIAGNOSIS_DETAILS = {
+    "건성": {
+      summary: "건조성 피부에 가까운 것 같아요 😊\n세안 후에 땡기는 느낌이 있고 각질도 종종 올라오는 편이라, 수분과 유분이 함께 부족한 상태일 가능성이 높아요.",
+      bullets: [
+        "🔹 세라마이드·히알루론산처럼 수분을 꽉 채워주는 고보습 제품",
+        "🔹 유수분 밸런스를 잡아주는 장벽 강화 크림",
+        "🔹 폼클렌저보다는 저자극 크림/오일 타입 세안제"
+      ],
+      procedure: "피부과 시술은 수분을 채워주는 스킨부스터/필링 계열을 추천드릴게요! 각질 제거 위주의 강한 박피는 지금 피부엔 좀 자극적일 수 있어요."
+    },
+    "지성": {
+      summary: "지성 피부에 가까운 것 같아요 😊\n세안하고 나서도 금방 번들거리는 편이라, 피지 분비가 활발하고 모공이 넓어지기 쉬운 상태일 가능성이 높아요.",
+      bullets: [
+        "🔹 티트리·살리실산처럼 피지·모공 관리에 도움되는 성분",
+        "🔹 산뜻하게 스며드는 가벼운 젤/워터 타입 제품",
+        "🔹 무거운 고보습 크림이나 오일 함량 높은 제품은 당분간 가볍게"
+      ],
+      procedure: "피부과 시술은 모공·피지 조절에 도움되는 필링/레이저 계열을 추천드릴게요! 과도한 오일 마사지는 오히려 자극이 될 수 있어요."
+    },
+    "복합성": {
+      summary: "복합성 피부에 가까운 것 같아요 😊\nT존은 번들거리고 볼 쪽은 당기는 느낌이 있는 걸 보니, 부위별로 유·수분 상태가 다른 편일 가능성이 높아요.",
+      bullets: [
+        "🔹 T존·볼 부위 상관없이 무난한 저자극 보습 제품",
+        "🔹 가볍게 스며들면서도 당김은 잡아주는 밸런싱 제품",
+        "🔹 부위별 자극이 다를 수 있으니 향료·알코올 최소화 제품"
+      ],
+      procedure: "피부과 시술은 피지·모공과 수분 밸런스를 함께 잡아주는 스킨부스터 계열을 추천드릴게요! 강한 박피는 볼 쪽엔 자극적일 수 있어요."
+    },
+    "민감성": {
+      summary: "수분 부족형 민감성 피부에 가까운 것 같아요 😊\n세안 후에 땡기는 느낌 있으시고, 새 제품 쓰면 트러블이 잘 올라오는 편이라 피부 장벽이 살짝 약해진 상태일 가능성이 높아요.",
+      bullets: [
+        "🔹 저자극 순한 제품 (향료·알코올 최소화)",
+        "🔹 세라마이드처럼 장벽 강화해주는 기능성 제품",
+        "🔹 고농도 산(AHA/BHA)이 들어간 자극적인 제품은 당분간 피하시는 게 좋아요"
+      ],
+      procedure: "피부과 시술은 수분을 채워주는 스킨부스터/필링 계열을 추천드릴게요! 각질 제거 위주의 강한 박피나 압출은 지금 피부엔 좀 자극적일 수 있어요."
+    }
+  };
+
+  function buildDiagnosisMessage(skinType){
+    const d = DIAGNOSIS_DETAILS[skinType] || DIAGNOSIS_DETAILS["민감성"];
+    return (
+      "자아, 말씀 다 들어봤어용! 종합해보니 고객님은 " + d.summary + "\n\n" +
+      "그래서 제품은 이런 방향으로 고르시는 게 좋아요:\n" +
+      d.bullets.join("\n") + "\n\n" +
+      d.procedure + "\n\n" +
+      "이제 이 방향에 맞는 코스맥스 제품, 구체적으로 골라드릴까요?"
+    );
+  }
 
   let screenSwitched = false;
   nextBtn.addEventListener('click', () => {
     if(nextBtn.disabled || screenSwitched) return;
     screenSwitched = true;
+    diagnosisSkinType = detectSkinType(diagnosisAnswers);
     screenDiagnosis.classList.remove('active');
     screenProduct.classList.add('active');
     progressWrap.style.display = 'none';
-    typeAndSend(chatScroll2, DIAGNOSIS_MESSAGE, 500);
+    typeAndSend(chatScroll2, buildDiagnosisMessage(diagnosisSkinType), 500);
   });
 
   /* ---------- 제품 추천 화면 (키워드 슬롯필링) ---------- */
@@ -615,13 +685,12 @@ HTML_CONTENT = r"""
   };
   const EFFECT_KEYWORDS = {
     "진정":"진정", "보습":"보습", "장벽":"장벽강화",
-    "미백":"미백", "탄력":"탄력", "트러블":"트러블 개선", "각질":"각질 케어"
+    "미백":"미백", "탄력":"탄력", "트러블":"트러블 개선", "각질":"각질 케어",
+    "피지":"피지조절", "모공":"모공케어"
   };
 
-  // 진단 결과("수분 부족형 민감성 피부")에 근거한 기본값 — 사용자가 직접 고르지 않고 "네가 알아서/맞는 걸로" 위임할 때 씀
+  // 진단 결과(감지된 피부타입)에 근거한 기본값 — 사용자가 직접 고르지 않고 "네가 알아서/맞는 걸로" 위임할 때 씀
   const DELEGATE_KEYWORDS = ["맞는", "적합", "알아서", "너가 골라", "니가 골라", "정해줘", "추천해줘", "골라줘", "아무거나", "다 좋아"];
-  const DIAGNOSIS_DEFAULT_EFFECT = "보습, 장벽강화";
-  const DIAGNOSIS_DEFAULT_TEXTURE = "촉촉한 밀착 타입";
 
   const productSlots = { category:null, texture:null, effect:null };
   let effectFromDelegation = false;
@@ -637,11 +706,12 @@ HTML_CONTENT = r"""
       for(const k in EFFECT_KEYWORDS){ if(text.includes(k)){ productSlots.effect = EFFECT_KEYWORDS[k]; break; } }
     }
 
-    // 명시적 키워드가 없는데 "위임" 표현이면, 아까 진단 결과 기준으로 대신 채워줌
+    // 명시적 키워드가 없는데 "위임" 표현이면, 아까 진단 결과(피부타입) 기준으로 대신 채워줌
     const delegated = DELEGATE_KEYWORDS.some((k) => text.includes(k));
     if(delegated){
-      if(!productSlots.effect){ productSlots.effect = DIAGNOSIS_DEFAULT_EFFECT; effectFromDelegation = true; }
-      if(!productSlots.texture){ productSlots.texture = DIAGNOSIS_DEFAULT_TEXTURE; }
+      const profile = SKIN_TYPE_PROFILE[diagnosisSkinType] || SKIN_TYPE_PROFILE["민감성"];
+      if(!productSlots.effect){ productSlots.effect = profile.effect; effectFromDelegation = true; }
+      if(!productSlots.texture){ productSlots.texture = profile.texture; }
     }
   }
 
@@ -664,49 +734,163 @@ HTML_CONTENT = r"""
       typeAndSend(chatScroll2, question, 500 + Math.random()*300);
     } else {
       const closing = effectFromDelegation
-        ? "네에, 아까 진단해드린 대로 보습 + 장벽강화 중심으로 딱 골라드릴게용! 👇"
-        : "네에, 딱 맞는 제품 골라드렸어용! 👇";
+        ? `네에, 아까 진단해드린 ${diagnosisSkinType} 피부 타입 기준으로 ${productSlots.effect} 중심으로 딱 골라드릴게용! 👇`
+        : `네에, ${diagnosisSkinType} 피부에 맞는 제품으로 딱 골라드렸어용! 👇`;
       typeAndSend(chatScroll2, closing, 500).then(renderProductCards);
     }
   }
 
+  const CREAM_IMAGE_SVG =
+    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+    '<rect x="8" y="22" width="48" height="36" rx="12" fill="#FFFFFF" stroke="#E5E5E5" stroke-width="2"/>' +
+    '<rect x="10" y="14" width="44" height="10" rx="5" fill="#EADFC8"/>' +
+    '<rect x="16" y="8" width="32" height="8" rx="4" fill="#DDD0B4"/>' +
+    '<ellipse cx="32" cy="42" rx="11" ry="6.5" fill="#8FBF6B" transform="rotate(-35 32 42)"/>' +
+    '<path d="M25 46 L39 36" stroke="#5E9142" stroke-width="1.6" stroke-linecap="round"/>' +
+    '</svg>';
+
+  const SERUM_IMAGE_SVG =
+    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+    '<rect x="24" y="2" width="16" height="6" rx="3" fill="#8FB9B4"/>' +
+    '<rect x="20" y="6" width="24" height="14" rx="4" fill="#BFD9D6"/>' +
+    '<path d="M18 20 L46 20 L42 58 Q42 60 40 60 L24 60 Q22 60 22 58 Z" fill="#FFFFFF" stroke="#E5E5E5" stroke-width="2"/>' +
+    '<path d="M32 30c-4 4-6 8-6 12 0 3.5 2.7 6 6 6s6-2.5 6-6c0-4-2-8-6-12z" fill="#7FB8D9"/>' +
+    '<circle cx="29" cy="40" r="1.6" fill="#FFFFFF" opacity="0.6"/>' +
+    '</svg>';
+
+  const TEATREE_IMAGE_SVG =
+    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+    '<rect x="8" y="22" width="48" height="36" rx="12" fill="#FFFFFF" stroke="#E5E5E5" stroke-width="2"/>' +
+    '<rect x="10" y="14" width="44" height="10" rx="5" fill="#BFE3DC"/>' +
+    '<rect x="16" y="8" width="32" height="8" rx="4" fill="#8FCFC2"/>' +
+    '<path d="M32 30c-4 4-6 9-6 13 0 3.8 2.7 6.5 6 6.5s6-2.7 6-6.5c0-4-2-9-6-13z" fill="#5FB6A6"/>' +
+    '<circle cx="30" cy="42" r="1.6" fill="#FFFFFF" opacity="0.6"/>' +
+    '</svg>';
+
+  const BRIGHT_IMAGE_SVG =
+    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+    '<rect x="24" y="2" width="16" height="6" rx="3" fill="#E3B23C"/>' +
+    '<rect x="20" y="6" width="24" height="14" rx="4" fill="#F3D48A"/>' +
+    '<path d="M18 20 L46 20 L42 58 Q42 60 40 60 L24 60 Q22 60 22 58 Z" fill="#FFFFFF" stroke="#E5E5E5" stroke-width="2"/>' +
+    '<path d="M32 30c-4 4-6 8-6 12 0 3.5 2.7 6 6 6s6-2.5 6-6c0-4-2-8-6-12z" fill="#F0C24B"/>' +
+    '<circle cx="29" cy="40" r="1.6" fill="#FFFFFF" opacity="0.6"/>' +
+    '</svg>';
+
+  const PINK_CREAM_IMAGE_SVG =
+    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+    '<rect x="8" y="22" width="48" height="36" rx="12" fill="#FFFFFF" stroke="#E5E5E5" stroke-width="2"/>' +
+    '<rect x="10" y="14" width="44" height="10" rx="5" fill="#F3D2D8"/>' +
+    '<rect x="16" y="8" width="32" height="8" rx="4" fill="#E8A9B6"/>' +
+    '<path d="M32 44 C28 39 22 41 22 46 C22 51 32 56 32 56 C32 56 42 51 42 46 C42 41 36 39 32 44 Z" fill="#E8879A"/>' +
+    '</svg>';
+
+  const CLEANSER_IMAGE_SVG =
+    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+    '<rect x="26" y="2" width="6" height="10" rx="2" fill="#9BB7D4"/>' +
+    '<path d="M20 12 L38 12 L34 8 L24 8 Z" fill="#9BB7D4"/>' +
+    '<rect x="18" y="12" width="8" height="10" rx="2" fill="#BFD3E8"/>' +
+    '<rect x="16" y="20" width="32" height="38" rx="10" fill="#FFFFFF" stroke="#E5E5E5" stroke-width="2"/>' +
+    '<path d="M24 38c0-4 3.5-7 8-7s8 3 8 7-3.5 9-8 9-8-5-8-9z" fill="#7FA9D9" opacity="0.85"/>' +
+    '</svg>';
+
+  const PRODUCT_CATALOG = [
+    {
+      name: "리페어 시카 크림 (예시)",
+      category: "크림",
+      skinTypes: ["건성", "민감성"],
+      textures: ["촉촉한 밀착 타입", "묵직한 타입"],
+      effects: ["보습", "장벽강화", "진정"],
+      tags: ["저자극", "장벽강화"],
+      desc: "세라마이드·판테놀 함유로 진정 + 보습, 촉촉한 밀착 타입. 코스맥스 제조 예시 제품이에요.",
+      price: "₩18,000대 (예시가)",
+      image: CREAM_IMAGE_SVG,
+      searchQuery: "시카크림"
+    },
+    {
+      name: "판테놀 수딩 세럼 (예시)",
+      category: "세럼",
+      skinTypes: ["민감성", "건성"],
+      textures: ["가볍고 산뜻한 타입"],
+      effects: ["진정", "보습"],
+      tags: ["저자극", "보습"],
+      desc: "가볍게 스며드는 산뜻한 타입, 붉은기 진정에 도움. 코스맥스 제조 예시 제품이에요.",
+      price: "₩22,000대 (예시가)",
+      image: SERUM_IMAGE_SVG,
+      searchQuery: "판테놀 세럼"
+    },
+    {
+      name: "티트리 퓨어 젤크림 (예시)",
+      category: "크림",
+      skinTypes: ["지성", "복합성"],
+      textures: ["가볍고 산뜻한 타입"],
+      effects: ["피지조절", "트러블 개선", "각질 케어"],
+      tags: ["피지조절", "산뜻한 젤 타입"],
+      desc: "티트리·살리실산 함유로 피지·트러블 케어, 가볍게 스며드는 젤 타입. 코스맥스 제조 예시 제품이에요.",
+      price: "₩17,000대 (예시가)",
+      image: TEATREE_IMAGE_SVG,
+      searchQuery: "티트리 젤크림"
+    },
+    {
+      name: "나이아신 브라이트닝 에센스 (예시)",
+      category: "에센스",
+      skinTypes: ["복합성", "지성", "건성"],
+      textures: ["가볍고 산뜻한 타입"],
+      effects: ["미백", "모공케어"],
+      tags: ["미백", "모공케어"],
+      desc: "나이아신아마이드 함유로 톤 개선 + 모공 케어, 산뜻하게 스며드는 타입. 코스맥스 제조 예시 제품이에요.",
+      price: "₩24,000대 (예시가)",
+      image: BRIGHT_IMAGE_SVG,
+      searchQuery: "나이아신아마이드 에센스"
+    },
+    {
+      name: "콜라겐 탄력 크림 (예시)",
+      category: "크림",
+      skinTypes: ["건성", "복합성", "민감성"],
+      textures: ["묵직한 타입", "촉촉한 밀착 타입"],
+      effects: ["탄력", "보습"],
+      tags: ["탄력", "고보습"],
+      desc: "콜라겐 함유로 탄력 + 보습 케어, 묵직하게 밀착되는 타입. 코스맥스 제조 예시 제품이에요.",
+      price: "₩26,000대 (예시가)",
+      image: PINK_CREAM_IMAGE_SVG,
+      searchQuery: "콜라겐 탄력크림"
+    },
+    {
+      name: "약산성 저자극 클렌저 (예시)",
+      category: "클렌저",
+      skinTypes: ["지성", "복합성", "민감성", "건성"],
+      textures: ["가볍고 산뜻한 타입"],
+      effects: ["진정", "트러블 개선"],
+      tags: ["저자극", "약산성"],
+      desc: "약산성 포뮬러로 자극 없이 산뜻하게 세안, 트러블 진정에 도움. 코스맥스 제조 예시 제품이에요.",
+      price: "₩15,000대 (예시가)",
+      image: CLEANSER_IMAGE_SVG,
+      searchQuery: "약산성 클렌저"
+    }
+  ];
+
+  function scoreProduct(p, ctx){
+    let score = 0;
+    if(ctx.category && p.category === ctx.category) score += 4;
+    if(ctx.skinType && p.skinTypes.includes(ctx.skinType)) score += 3;
+    if(ctx.texture && p.textures.includes(ctx.texture)) score += 2;
+    if(ctx.effect){
+      ctx.effect.split(/,\s*/).forEach((e) => { if(p.effects.includes(e.trim())) score += 2; });
+    }
+    return score;
+  }
+
   function renderProductCards(){
-    const CREAM_IMAGE_SVG =
-      '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
-      '<rect x="8" y="22" width="48" height="36" rx="12" fill="#FFFFFF" stroke="#E5E5E5" stroke-width="2"/>' +
-      '<rect x="10" y="14" width="44" height="10" rx="5" fill="#EADFC8"/>' +
-      '<rect x="16" y="8" width="32" height="8" rx="4" fill="#DDD0B4"/>' +
-      '<ellipse cx="32" cy="42" rx="11" ry="6.5" fill="#8FBF6B" transform="rotate(-35 32 42)"/>' +
-      '<path d="M25 46 L39 36" stroke="#5E9142" stroke-width="1.6" stroke-linecap="round"/>' +
-      '</svg>';
-
-    const SERUM_IMAGE_SVG =
-      '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
-      '<rect x="24" y="2" width="16" height="6" rx="3" fill="#8FB9B4"/>' +
-      '<rect x="20" y="6" width="24" height="14" rx="4" fill="#BFD9D6"/>' +
-      '<path d="M18 20 L46 20 L42 58 Q42 60 40 60 L24 60 Q22 60 22 58 Z" fill="#FFFFFF" stroke="#E5E5E5" stroke-width="2"/>' +
-      '<path d="M32 30c-4 4-6 8-6 12 0 3.5 2.7 6 6 6s6-2.5 6-6c0-4-2-8-6-12z" fill="#7FB8D9"/>' +
-      '<circle cx="29" cy="40" r="1.6" fill="#FFFFFF" opacity="0.6"/>' +
-      '</svg>';
-
-    const products = [
-      {
-        name: "리페어 시카 크림 (예시)",
-        tags: ["저자극", "장벽강화"],
-        desc: "세라마이드·판테놀 함유로 진정 + 보습, 촉촉한 밀착 타입. 코스맥스 제조 예시 제품이에요.",
-        price: "₩18,000대 (예시가)",
-        image: CREAM_IMAGE_SVG,
-        searchQuery: "시카크림"
-      },
-      {
-        name: "판테놀 수딩 세럼 (예시)",
-        tags: ["저자극", "보습"],
-        desc: "가볍게 스며드는 산뜻한 타입, 붉은기 진정에 도움. 코스맥스 제조 예시 제품이에요.",
-        price: "₩22,000대 (예시가)",
-        image: SERUM_IMAGE_SVG,
-        searchQuery: "판테놀 세럼"
-      }
-    ];
+    const ctx = {
+      skinType: diagnosisSkinType,
+      category: productSlots.category,
+      texture: productSlots.texture,
+      effect: productSlots.effect
+    };
+    const products = PRODUCT_CATALOG
+      .map((p) => ({ p: p, score: scoreProduct(p, ctx) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 2)
+      .map((s) => s.p);
 
     products.forEach((p) => {
       const card = document.createElement('div');
