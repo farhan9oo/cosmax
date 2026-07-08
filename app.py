@@ -695,14 +695,16 @@ HTML_CONTENT = r"""
         tags: ["저자극", "장벽강화"],
         desc: "세라마이드·판테놀 함유로 진정 + 보습, 촉촉한 밀착 타입. 코스맥스 제조 예시 제품이에요.",
         price: "₩18,000대 (예시가)",
-        image: CREAM_IMAGE_SVG
+        image: CREAM_IMAGE_SVG,
+        searchQuery: "시카크림"
       },
       {
         name: "판테놀 수딩 세럼 (예시)",
         tags: ["저자극", "보습"],
         desc: "가볍게 스며드는 산뜻한 타입, 붉은기 진정에 도움. 코스맥스 제조 예시 제품이에요.",
         price: "₩22,000대 (예시가)",
-        image: SERUM_IMAGE_SVG
+        image: SERUM_IMAGE_SVG,
+        searchQuery: "판테놀 세럼"
       }
     ];
 
@@ -723,7 +725,9 @@ HTML_CONTENT = r"""
           '<button class="p-link" type="button">올리브영에서 보기 →</button>' +
         '</div>';
       card.querySelector('.p-link').addEventListener('click', () => {
-        showToast('실제 제품 DB 연동 전 예시 링크예요 🙂');
+        const url = 'https://www.oliveyoung.co.kr/store/search/getSearchMain.do?query=' + encodeURIComponent(p.searchQuery);
+        window.open(url, '_blank', 'noopener');
+        showToast('올리브영 "' + p.searchQuery + '" 검색결과로 이동해요 🙂');
       });
       chatScroll2.appendChild(card);
     });
