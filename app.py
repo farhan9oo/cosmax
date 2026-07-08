@@ -338,7 +338,7 @@ HTML_CONTENT = r"""
     </div>
     <div class="progress" id="progressWrap">
       <div class="progress-dots" id="progressDots"></div>
-      <span class="progress-label" id="progressLabel">0/10</span>
+      <span class="progress-label" id="progressLabel">0/8</span>
     </div>
   </div>
 
@@ -424,48 +424,158 @@ HTML_CONTENT = r"""
   const chatInput2 = document.getElementById('chatInput2');
   const sendBtn2 = document.getElementById('sendBtn2');
 
-  const TOTAL_TURNS = 10;
-  let turnCount = 0;
-  const diagnosisAnswers = [];
-
-  const SKIN_TYPE_KEYWORDS = {
-    "건성": ["건조","당기","땡기","당김","푸석","메마","각질"],
-    "지성": ["번들","기름","유분","블랙헤드","모공","미끌"],
-    "복합성": ["티존","T존","t존","부분적","혼합"],
-    "민감성": ["예민","민감","트러블","자극","붉어지","화끈","따갑","가렵"]
+  // ---------- 자유 대화 슬롯필링 상태 ----------
+  // 사용자는 객관식이 아니라 자유 텍스트로 말하고, 여기서 내부적으로 슬롯을 채워나간다.
+  let diagnosisSlots = {
+    "유분감": null,
+    "건조감": null,
+    "세안_후_당김": null,
+    "T존_번들거림": null,
+    "U존_건조함": null,
+    "각질": null,
+    "민감_따가움_홍조": null,
+    "여드름_트러블_위치": null,
+    "사용_중인_제품": null,
+    "피해야_할_성분": null,
+    "선호_제형": null
   };
+  const askedSlots = new Set();
+  let diagnosisResult = null;
 
-  const SKIN_TYPE_PROFILE = {
-    "건성": { effect: "보습, 장벽강화", texture: "촉촉한 밀착 타입" },
-    "지성": { effect: "피지조절, 트러블 개선", texture: "가볍고 산뜻한 타입" },
-    "복합성": { effect: "보습, 피지조절", texture: "가볍고 산뜻한 타입" },
-    "민감성": { effect: "진정, 장벽강화", texture: "촉촉한 밀착 타입" }
+  // 피부 타입(건성/지성/복합성/수부지) 판별에 실제로 쓰이는 슬롯만 모음
+  // 민감성/여드름은 피부 타입이 아니라 concerns로 별도 분리됨
+  const DIAGNOSTIC_SLOTS = ["유분감", "건조감", "세안_후_당김", "T존_번들거림", "U존_건조함", "각질", "민감_따가움_홍조", "여드름_트러블_위치"];
+
+  const SLOT_KEYWORDS = {
+    "유분감": ["번들", "기름", "유분", "미끌"],
+    "건조감": ["건조", "푸석", "메마"],
+    "세안_후_당김": ["당기", "땡기", "당김"],
+    "각질": ["각질", "거칠"],
+    "민감_따가움_홍조": ["예민", "민감", "따갑", "화끈", "붉어지", "홍조", "가렵", "자극"],
+    "여드름_트러블_위치": ["여드름", "뾰루지", "트러블", "좁쌀", "화농"],
+    "사용_중인_제품": ["토너", "에센스", "세럼", "크림", "로션", "클렌저", "스킨"],
+    "피해야_할_성분": ["레티놀", "AHA", "BHA", "알코올", "향료"],
+    "선호_제형": ["가볍", "산뜻", "촉촉", "밀착", "묵직", "젤"]
   };
+  // T존/U존은 "부위 단어"와 "유분/건조 단어"가 같이 나와야 신뢰도 있는 신호로 취급
+  const T_ZONE_WORDS = ["티존", "T존", "t존", "이마", "코"];
+  const U_ZONE_WORDS = ["볼", "유존", "U존", "u존"];
+  const OILY_WORDS = ["번들", "기름", "유분", "미끌"];
+  const DRY_WORDS = ["당기", "땡기", "당김", "건조", "푸석"];
 
-  function detectSkinType(answers){
-    const text = answers.join(' ');
-    let best = "민감성";
-    let bestScore = 0;
-    for(const type in SKIN_TYPE_KEYWORDS){
-      const score = SKIN_TYPE_KEYWORDS[type].filter((k) => text.includes(k)).length;
-      if(score > bestScore){ bestScore = score; best = type; }
-    }
-    return best;
+  function hasAny(text, words){
+    return words.some((w) => text.includes(w));
   }
 
-  let diagnosisSkinType = "민감성";
+  // 자유 텍스트에서 슬롯 정보를 추출한다. 이미 채워진 슬롯은 덮어쓰지 않는다.
+  function extractSlots(text, slots){
+    const filled = [];
+    if(!slots["T존_번들거림"] && hasAny(text, T_ZONE_WORDS) && hasAny(text, OILY_WORDS)){
+      slots["T존_번들거림"] = text;
+      filled.push("T존_번들거림");
+    }
+    if(!slots["U존_건조함"] && hasAny(text, U_ZONE_WORDS) && hasAny(text, DRY_WORDS)){
+      slots["U존_건조함"] = text;
+      filled.push("U존_건조함");
+    }
+    for(const slot in SLOT_KEYWORDS){
+      if(slots[slot]) continue;
+      if(hasAny(text, SLOT_KEYWORDS[slot])){
+        slots[slot] = text;
+        filled.push(slot);
+      }
+    }
+    return filled;
+  }
 
-  const followUps = [
-    "오오, 그러쉬구놔~ 세안하고 나면 얼굴이 땡기는 편이세요, 아니면 좀 번들거리는 편이세요?",
-    "혹시 새 제품 쓰셨다가 트러블이 확 올라온 적 있으세요? 그때 어떤 제품 쓰셨는지 기억나세요?",
-    "여드름 나면 좁쌀처럼 오돌토돌한 편이세요, 아니면 빨갛게 염증성으로 올라오는 편이세요?",
-    "각질은 어떠세요? 손으로 만졌을 때 까슬까슬한 부위 있으세요?",
-    "햇빛 좀 쬐면 금방 벌게지거나 화끈거리는 편이세요?",
-    "요즘 잠이 부족하거나 스트레스 받는 시기이셨나요? 피부는 생활 패턴이랑도 정말 연결돼있거든요",
-    "계절 바뀔 때 피부 컨디션이 많이 달라지시나요? 여름이랑 겨울 비교하면 어떠세요?",
-    "지금 쓰고 계신 스킨케어, 순서대로 말씀해주시겠어요? (토너, 에센스, 크림 이런 거요)",
-    "마지막 질문이에요! 요즘 제일 신경쓰이는 피부 고민, 딱 하나만 뽑으면 뭔가요?"
+  // 부족한 정보를 자연스러운 순서로 물어보기 위한 질문 은행
+  // topic: 엉뚱한 답변을 자연스럽게 다음 질문으로 넘길 때 쓰는 짧은 표현
+  // ask: 직접 물어볼 때 쓰는 완전한 질문 문장
+  const SLOT_QUESTIONS = [
+    { slot: "세안_후_당김", topic: "세안 후 당김이 있는지", ask: "세안하고 나서 얼굴이 당기는 느낌이 있으세요, 없으세요?" },
+    { slot: "유분감", topic: "번들거림이나 유분기가 있는지", ask: "그럼 반대로 번들거리거나 기름지는 느낌은 어느 정도세요?" },
+    { slot: "T존_번들거림", topic: "이마나 코(T존)가 번들거리는지", ask: "오오, 그럼 이마나 코 쪽(T존)이 유독 번들거리는 편이세요?" },
+    { slot: "U존_건조함", topic: "볼 쪽이 당기는지", ask: "볼 쪽은 어때요? 거긴 오히려 당기고 건조한 편인가요?" },
+    { slot: "각질", topic: "각질이 있는지", ask: "각질은 어떠세요? 손으로 만졌을 때 까슬까슬한 부위 있으세요?" },
+    { slot: "민감_따가움_홍조", topic: "새 제품 쓸 때 따갑거나 붉어지는지", ask: "새로운 제품 쓰면 따갑거나 붉어지는 편이세요?" },
+    { slot: "여드름_트러블_위치", topic: "여드름이나 트러블이 어디에 나는지", ask: "여드름이나 트러블은 주로 어디에 잘 나는 편이세요? (턱, 볼, 이마 등)" },
+    { slot: "사용_중인_제품", topic: "지금 쓰고 계신 제품", ask: "지금 쓰고 계신 스킨케어 제품 있으면 편하게 말씀해주세요!" }
   ];
+
+  function pickNextQuestionItem(slots, asked){
+    for(const item of SLOT_QUESTIONS){
+      if(!slots[item.slot] && !asked.has(item.slot)){
+        asked.add(item.slot);
+        return item;
+      }
+    }
+    return null;
+  }
+
+  function filledCount(slots, list){
+    return list.filter((s) => slots[s]).length;
+  }
+
+  function isReadyForDiagnosis(slots, asked){
+    if(filledCount(slots, DIAGNOSTIC_SLOTS) >= 4) return true;
+    if(asked.size >= SLOT_QUESTIONS.length) return true;
+    return false;
+  }
+
+  const EVIDENCE_LABELS = {
+    "유분감": "번들거림/유분기",
+    "건조감": "건조함",
+    "세안_후_당김": "세안 후 당김",
+    "T존_번들거림": "T존 번들거림",
+    "U존_건조함": "볼(U존) 건조함",
+    "각질": "각질",
+    "민감_따가움_홍조": "따가움/홍조",
+    "여드름_트러블_위치": "여드름/트러블"
+  };
+
+  // 채워진 슬롯을 근거로 피부 타입(건성/지성/복합성/수부지)과 고민(민감/여드름 등)을 계산한다.
+  // diagnosis_result 형식: { primary_skin_type, secondary_skin_type, concerns, evidence, confidence }
+  function computeDiagnosis(slots){
+    const oilScore = (slots["유분감"] ? 1 : 0) + (slots["T존_번들거림"] ? 1 : 0);
+    const dryScore = (slots["건조감"] ? 1 : 0) + (slots["세안_후_당김"] ? 1 : 0) + (slots["U존_건조함"] ? 1 : 0) + (slots["각질"] ? 1 : 0);
+    const hasAreaSplit = Boolean(slots["T존_번들거림"] && slots["U존_건조함"]);
+
+    let primary;
+    if(hasAreaSplit) primary = "복합성";
+    else if(oilScore > 0 && dryScore > 0) primary = "수부지";
+    else if(oilScore > dryScore) primary = "지성";
+    else if(dryScore > oilScore) primary = "건성";
+    else primary = "복합성";
+
+    const typeScores = {
+      "건성": dryScore,
+      "지성": oilScore,
+      "복합성": hasAreaSplit ? oilScore + dryScore : 0,
+      "수부지": (oilScore > 0 && dryScore > 0) ? Math.min(oilScore, dryScore) : 0
+    };
+    delete typeScores[primary];
+    let secondary = null;
+    let secondBest = 0;
+    for(const type in typeScores){
+      if(typeScores[type] > secondBest){ secondBest = typeScores[type]; secondary = type; }
+    }
+
+    const concerns = [];
+    if(slots["민감_따가움_홍조"]) concerns.push("민감");
+    if(slots["여드름_트러블_위치"]) concerns.push("여드름");
+    if(slots["세안_후_당김"] && slots["민감_따가움_홍조"]) concerns.push("장벽약화");
+
+    const evidence = DIAGNOSTIC_SLOTS.filter((s) => slots[s]).map((s) => EVIDENCE_LABELS[s]);
+    const confidence = Math.round(Math.min(0.95, 0.4 + filledCount(slots, DIAGNOSTIC_SLOTS) * 0.1) * 100) / 100;
+
+    return {
+      primary_skin_type: primary,
+      secondary_skin_type: secondary,
+      concerns: concerns,
+      evidence: evidence,
+      confidence: confidence
+    };
+  }
 
   const AVATAR_IMAGE_SVG =
     '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">' +
@@ -501,13 +611,15 @@ HTML_CONTENT = r"""
   });
 
   function renderDots(){
+    const filled = filledCount(diagnosisSlots, DIAGNOSTIC_SLOTS);
+    const total = DIAGNOSTIC_SLOTS.length;
     progressDots.innerHTML = '';
-    for(let i=0;i<TOTAL_TURNS;i++){
+    for(let i=0;i<total;i++){
       const d = document.createElement('div');
-      d.className = 'dot' + (i < turnCount ? ' filled' : '');
+      d.className = 'dot' + (i < filled ? ' filled' : '');
       progressDots.appendChild(d);
     }
-    progressLabel.textContent = `${Math.min(turnCount,TOTAL_TURNS)}/${TOTAL_TURNS}`;
+    progressLabel.textContent = `${filled}/${total}`;
   }
 
   function addImageMessage(scroll, svgMarkup){
@@ -590,16 +702,29 @@ HTML_CONTENT = r"""
     if(!text) return;
     addMessage(chatScroll, text, 'user');
     chatInput.value = '';
-    diagnosisAnswers.push(text);
-    turnCount++;
+
+    if(diagnosisResult){
+      typeAndSend(chatScroll, "네에, 그 얘기도 참고할게요! 아래 '제품 추천 받으러 가기' 눌러서 결과 보러 가실까요? 😊", 500);
+      return;
+    }
+
+    const newlyFilled = extractSlots(text, diagnosisSlots);
     renderDots();
 
-    if(turnCount >= TOTAL_TURNS){
-      typeAndSend(chatScroll, "네에, 이 정도면 피부 상태가 딱 파악됐어용! 아래 '제품 추천 받으러 가기' 눌러서 결과 보러 가실까요? 👇\n(더 이야기하고 싶으시면 계속 말씀해주셔도 돼요, 더 정확해져요!)", 500);
+    if(isReadyForDiagnosis(diagnosisSlots, askedSlots)){
+      diagnosisResult = computeDiagnosis(diagnosisSlots);
+      typeAndSend(chatScroll, "네에, 이 정도면 피부 상태가 딱 파악됐어용! 아래 '제품 추천 받으러 가기' 눌러서 결과 보러 가실까요? 👇", 500);
       unlockNextButton();
+      return;
+    }
+
+    const item = pickNextQuestionItem(diagnosisSlots, askedSlots);
+    if(newlyFilled.length === 0){
+      // 슬롯과 무관한 엉뚱한 답변 - 자연스럽게 받아넘기고 다음 필요한 정보로 유도
+      const topic = item ? item.topic : "조금 더 자세한 피부 상태";
+      typeAndSend(chatScroll, `좋아요, 그 얘기도 참고할게요~ 피부 상태를 더 정확히 보려면 ${topic}도 알려주세요!`, 500 + Math.random()*300);
     } else {
-      const next = followUps[turnCount - 1] || "조으음 더 자세히 말씀해주시겠어용? 어떤 느낌인지 궁금하네용!";
-      typeAndSend(chatScroll, next, 500 + Math.random()*300);
+      typeAndSend(chatScroll, item ? item.ask : "조으음 더 자세히 말씀해주시겠어용?", 500 + Math.random()*300);
     }
   }
 
@@ -641,21 +766,29 @@ HTML_CONTENT = r"""
       ],
       procedure: "피부과 시술은 피지·모공과 수분 밸런스를 함께 잡아주는 스킨부스터 계열을 추천드릴게요! 강한 박피는 볼 쪽엔 자극적일 수 있어요."
     },
-    "민감성": {
-      summary: "수분 부족형 민감성 피부에 가까운 것 같아요 😊\n세안 후에 땡기는 느낌 있으시고, 새 제품 쓰면 트러블이 잘 올라오는 편이라 피부 장벽이 살짝 약해진 상태일 가능성이 높아요.",
+    "수부지": {
+      summary: "수분부족지성(수부지) 피부에 가까운 것 같아요 😊\n번들거리는 느낌과 당기는 느낌이 같이 나타나는 걸 보니, 겉은 기름지지만 속은 수분이 부족한 상태일 가능성이 높아요.",
       bullets: [
-        "🔹 저자극 순한 제품 (향료·알코올 최소화)",
-        "🔹 세라마이드처럼 장벽 강화해주는 기능성 제품",
-        "🔹 고농도 산(AHA/BHA)이 들어간 자극적인 제품은 당분간 피하시는 게 좋아요"
+        "🔹 저분자+고분자 히알루론산으로 속수분부터 채워주는 제품",
+        "🔹 산뜻하면서도 보습력 있는 워터젤 타입",
+        "🔹 과도한 오일 컷 클렌저나 강한 필링은 당분간 피하는 게 좋아요"
       ],
-      procedure: "피부과 시술은 수분을 채워주는 스킨부스터/필링 계열을 추천드릴게요! 각질 제거 위주의 강한 박피나 압출은 지금 피부엔 좀 자극적일 수 있어요."
+      procedure: "피부과 시술은 속수분을 채워주는 스킨부스터 계열을 추천드릴게요! 피지 제거 위주의 강한 필링은 오히려 자극이 될 수 있어요."
     }
   };
 
-  function buildDiagnosisMessage(skinType){
-    const d = DIAGNOSIS_DETAILS[skinType] || DIAGNOSIS_DETAILS["민감성"];
+  // diagnosis_result(primary_skin_type, concerns 등)를 기반으로 진단 메시지를 만든다.
+  function buildDiagnosisMessage(result){
+    const d = DIAGNOSIS_DETAILS[result.primary_skin_type] || DIAGNOSIS_DETAILS["복합성"];
+    let concernNote = "";
+    if(result.concerns.includes("민감")){
+      concernNote += "\n\n거기에 자극에도 좀 예민하게 반응하시는 편이라, 향료·알코올 없는 저자극 제품 위주로 고르시는 게 좋아요.";
+    }
+    if(result.concerns.includes("여드름")){
+      concernNote += "\n\n트러블도 종종 올라오는 편이니, 살리실산이나 티트리처럼 트러블 케어 성분도 같이 봐드릴게요.";
+    }
     return (
-      "자아, 말씀 다 들어봤어용! 종합해보니 고객님은 " + d.summary + "\n\n" +
+      "자아, 말씀 다 들어봤어용! 종합해보니 고객님은 " + d.summary + concernNote + "\n\n" +
       "그래서 제품은 이런 방향으로 고르시는 게 좋아요:\n" +
       d.bullets.join("\n") + "\n\n" +
       d.procedure + "\n\n" +
@@ -667,11 +800,11 @@ HTML_CONTENT = r"""
   nextBtn.addEventListener('click', () => {
     if(nextBtn.disabled || screenSwitched) return;
     screenSwitched = true;
-    diagnosisSkinType = detectSkinType(diagnosisAnswers);
+    if(!diagnosisResult){ diagnosisResult = computeDiagnosis(diagnosisSlots); }
     screenDiagnosis.classList.remove('active');
     screenProduct.classList.add('active');
     progressWrap.style.display = 'none';
-    typeAndSend(chatScroll2, buildDiagnosisMessage(diagnosisSkinType), 500);
+    typeAndSend(chatScroll2, buildDiagnosisMessage(diagnosisResult), 500);
   });
 
   /* ---------- 제품 추천 화면 (키워드 슬롯필링) ---------- */
@@ -689,11 +822,26 @@ HTML_CONTENT = r"""
     "피지":"피지조절", "모공":"모공케어"
   };
 
-  // 진단 결과(감지된 피부타입)에 근거한 기본값 — 사용자가 직접 고르지 않고 "네가 알아서/맞는 걸로" 위임할 때 씀
+  // 피부 타입별 기본 효과/제형 — 사용자가 직접 고르지 않고 "네가 알아서/맞는 걸로" 위임할 때 씀
+  const SKIN_TYPE_PROFILE = {
+    "건성": { effect: "보습, 장벽강화", texture: "촉촉한 밀착 타입" },
+    "지성": { effect: "피지조절, 트러블 개선", texture: "가볍고 산뜻한 타입" },
+    "복합성": { effect: "보습, 피지조절", texture: "가볍고 산뜻한 타입" },
+    "수부지": { effect: "보습, 피지조절", texture: "가볍고 산뜻한 타입" }
+  };
   const DELEGATE_KEYWORDS = ["맞는", "적합", "알아서", "너가 골라", "니가 골라", "정해줘", "추천해줘", "골라줘", "아무거나", "다 좋아"];
 
   const productSlots = { category:null, texture:null, effect:null };
   let effectFromDelegation = false;
+
+  // diagnosis_result.concerns(민감/여드름)을 위임 시 기본 효과에 추가로 반영
+  function buildDelegatedEffect(){
+    const profile = SKIN_TYPE_PROFILE[diagnosisResult.primary_skin_type] || SKIN_TYPE_PROFILE["복합성"];
+    const effects = profile.effect.split(", ");
+    if(diagnosisResult.concerns.includes("민감") && !effects.includes("진정")) effects.push("진정");
+    if(diagnosisResult.concerns.includes("여드름") && !effects.includes("트러블 개선")) effects.push("트러블 개선");
+    return effects.join(", ");
+  }
 
   function detectSlots(text){
     if(!productSlots.category){
@@ -706,11 +854,11 @@ HTML_CONTENT = r"""
       for(const k in EFFECT_KEYWORDS){ if(text.includes(k)){ productSlots.effect = EFFECT_KEYWORDS[k]; break; } }
     }
 
-    // 명시적 키워드가 없는데 "위임" 표현이면, 아까 진단 결과(피부타입) 기준으로 대신 채워줌
+    // 명시적 키워드가 없는데 "위임" 표현이면, 아까 진단 결과(피부타입+고민) 기준으로 대신 채워줌
     const delegated = DELEGATE_KEYWORDS.some((k) => text.includes(k));
     if(delegated){
-      const profile = SKIN_TYPE_PROFILE[diagnosisSkinType] || SKIN_TYPE_PROFILE["민감성"];
-      if(!productSlots.effect){ productSlots.effect = profile.effect; effectFromDelegation = true; }
+      const profile = SKIN_TYPE_PROFILE[diagnosisResult.primary_skin_type] || SKIN_TYPE_PROFILE["복합성"];
+      if(!productSlots.effect){ productSlots.effect = buildDelegatedEffect(); effectFromDelegation = true; }
       if(!productSlots.texture){ productSlots.texture = profile.texture; }
     }
   }
@@ -734,8 +882,8 @@ HTML_CONTENT = r"""
       typeAndSend(chatScroll2, question, 500 + Math.random()*300);
     } else {
       const closing = effectFromDelegation
-        ? `네에, 아까 진단해드린 ${diagnosisSkinType} 피부 타입 기준으로 ${productSlots.effect} 중심으로 딱 골라드릴게용! 👇`
-        : `네에, ${diagnosisSkinType} 피부에 맞는 제품으로 딱 골라드렸어용! 👇`;
+        ? `네에, 아까 진단해드린 ${diagnosisResult.primary_skin_type} 피부 타입 기준으로 ${productSlots.effect} 중심으로 딱 골라드릴게용! 👇`
+        : `네에, ${diagnosisResult.primary_skin_type} 피부에 맞는 제품으로 딱 골라드렸어용! 👇`;
       typeAndSend(chatScroll2, closing, 500).then(renderProductCards);
     }
   }
@@ -797,7 +945,7 @@ HTML_CONTENT = r"""
     {
       name: "리페어 시카 크림 (예시)",
       category: "크림",
-      skinTypes: ["건성", "민감성"],
+      skinTypes: ["건성"],
       textures: ["촉촉한 밀착 타입", "묵직한 타입"],
       effects: ["보습", "장벽강화", "진정"],
       tags: ["저자극", "장벽강화"],
@@ -809,7 +957,7 @@ HTML_CONTENT = r"""
     {
       name: "판테놀 수딩 세럼 (예시)",
       category: "세럼",
-      skinTypes: ["민감성", "건성"],
+      skinTypes: ["건성", "수부지"],
       textures: ["가볍고 산뜻한 타입"],
       effects: ["진정", "보습"],
       tags: ["저자극", "보습"],
@@ -821,7 +969,7 @@ HTML_CONTENT = r"""
     {
       name: "티트리 퓨어 젤크림 (예시)",
       category: "크림",
-      skinTypes: ["지성", "복합성"],
+      skinTypes: ["지성", "복합성", "수부지"],
       textures: ["가볍고 산뜻한 타입"],
       effects: ["피지조절", "트러블 개선", "각질 케어"],
       tags: ["피지조절", "산뜻한 젤 타입"],
@@ -845,7 +993,7 @@ HTML_CONTENT = r"""
     {
       name: "콜라겐 탄력 크림 (예시)",
       category: "크림",
-      skinTypes: ["건성", "복합성", "민감성"],
+      skinTypes: ["건성", "복합성"],
       textures: ["묵직한 타입", "촉촉한 밀착 타입"],
       effects: ["탄력", "보습"],
       tags: ["탄력", "고보습"],
@@ -857,7 +1005,7 @@ HTML_CONTENT = r"""
     {
       name: "약산성 저자극 클렌저 (예시)",
       category: "클렌저",
-      skinTypes: ["지성", "복합성", "민감성", "건성"],
+      skinTypes: ["지성", "복합성", "건성", "수부지"],
       textures: ["가볍고 산뜻한 타입"],
       effects: ["진정", "트러블 개선"],
       tags: ["저자극", "약산성"],
@@ -868,20 +1016,30 @@ HTML_CONTENT = r"""
     }
   ];
 
+  // 고민(concern)이 제품 효과(effect) 태그와 매칭되도록 하는 매핑
+  const CONCERN_TO_EFFECT = { "민감": "진정", "여드름": "트러블 개선", "각질": "각질 케어" };
+
   function scoreProduct(p, ctx){
     let score = 0;
     if(ctx.category && p.category === ctx.category) score += 4;
-    if(ctx.skinType && p.skinTypes.includes(ctx.skinType)) score += 3;
+    if(p.skinTypes.includes(ctx.primarySkinType)) score += 3;
+    if(ctx.secondarySkinType && p.skinTypes.includes(ctx.secondarySkinType)) score += 1.5;
     if(ctx.texture && p.textures.includes(ctx.texture)) score += 2;
     if(ctx.effect){
       ctx.effect.split(/,\s*/).forEach((e) => { if(p.effects.includes(e.trim())) score += 2; });
     }
+    ctx.concerns.forEach((c) => {
+      const mappedEffect = CONCERN_TO_EFFECT[c];
+      if(mappedEffect && p.effects.includes(mappedEffect)) score += 1;
+    });
     return score;
   }
 
   function renderProductCards(){
     const ctx = {
-      skinType: diagnosisSkinType,
+      primarySkinType: diagnosisResult.primary_skin_type,
+      secondarySkinType: diagnosisResult.secondary_skin_type,
+      concerns: diagnosisResult.concerns,
       category: productSlots.category,
       texture: productSlots.texture,
       effect: productSlots.effect
