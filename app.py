@@ -212,8 +212,17 @@ HTML_CONTENT = r"""
     animation:pop .25s ease;
   }
   .product-card + .product-card{margin-top:2px;}
+  .product-card .p-top{display:flex;gap:12px;align-items:flex-start;margin-bottom:10px;}
+  .product-card .p-image{
+    width:60px;height:60px;flex-shrink:0;
+    border-radius:12px;overflow:hidden;
+    background:var(--card-bg);
+    border:1px solid var(--border);
+  }
+  .product-card .p-image svg{width:100%;height:100%;display:block;}
+  .product-card .p-meta{flex:1;min-width:0;}
   .product-card .p-name{font-size:13.5px;font-weight:700;margin:0 0 6px;}
-  .product-card .p-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;}
+  .product-card .p-tags{display:flex;gap:5px;flex-wrap:wrap;}
   .product-card .p-tag{
     font-size:10px;color:var(--primary-dark);
     background:var(--primary-tint);
@@ -662,18 +671,38 @@ HTML_CONTENT = r"""
   }
 
   function renderProductCards(){
+    const CREAM_IMAGE_SVG =
+      '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+      '<rect x="8" y="22" width="48" height="36" rx="12" fill="#FFFFFF" stroke="#E5E5E5" stroke-width="2"/>' +
+      '<rect x="10" y="14" width="44" height="10" rx="5" fill="#EADFC8"/>' +
+      '<rect x="16" y="8" width="32" height="8" rx="4" fill="#DDD0B4"/>' +
+      '<ellipse cx="32" cy="42" rx="11" ry="6.5" fill="#8FBF6B" transform="rotate(-35 32 42)"/>' +
+      '<path d="M25 46 L39 36" stroke="#5E9142" stroke-width="1.6" stroke-linecap="round"/>' +
+      '</svg>';
+
+    const SERUM_IMAGE_SVG =
+      '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+      '<rect x="24" y="2" width="16" height="6" rx="3" fill="#8FB9B4"/>' +
+      '<rect x="20" y="6" width="24" height="14" rx="4" fill="#BFD9D6"/>' +
+      '<path d="M18 20 L46 20 L42 58 Q42 60 40 60 L24 60 Q22 60 22 58 Z" fill="#FFFFFF" stroke="#E5E5E5" stroke-width="2"/>' +
+      '<path d="M32 30c-4 4-6 8-6 12 0 3.5 2.7 6 6 6s6-2.5 6-6c0-4-2-8-6-12z" fill="#7FB8D9"/>' +
+      '<circle cx="29" cy="40" r="1.6" fill="#FFFFFF" opacity="0.6"/>' +
+      '</svg>';
+
     const products = [
       {
         name: "리페어 시카 크림 (예시)",
         tags: ["저자극", "장벽강화"],
         desc: "세라마이드·판테놀 함유로 진정 + 보습, 촉촉한 밀착 타입. 코스맥스 제조 예시 제품이에요.",
-        price: "₩18,000대 (예시가)"
+        price: "₩18,000대 (예시가)",
+        image: CREAM_IMAGE_SVG
       },
       {
         name: "판테놀 수딩 세럼 (예시)",
         tags: ["저자극", "보습"],
         desc: "가볍게 스며드는 산뜻한 타입, 붉은기 진정에 도움. 코스맥스 제조 예시 제품이에요.",
-        price: "₩22,000대 (예시가)"
+        price: "₩22,000대 (예시가)",
+        image: SERUM_IMAGE_SVG
       }
     ];
 
@@ -681,8 +710,13 @@ HTML_CONTENT = r"""
       const card = document.createElement('div');
       card.className = 'product-card';
       card.innerHTML =
-        '<p class="p-name">' + p.name + '</p>' +
-        '<div class="p-tags">' + p.tags.map((t) => '<span class="p-tag">' + t + '</span>').join('') + '</div>' +
+        '<div class="p-top">' +
+          '<div class="p-image">' + p.image + '</div>' +
+          '<div class="p-meta">' +
+            '<p class="p-name">' + p.name + '</p>' +
+            '<div class="p-tags">' + p.tags.map((t) => '<span class="p-tag">' + t + '</span>').join('') + '</div>' +
+          '</div>' +
+        '</div>' +
         '<p class="p-desc">' + p.desc + '</p>' +
         '<div class="p-bottom">' +
           '<span class="p-price">' + p.price + '</span>' +
